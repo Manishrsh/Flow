@@ -207,7 +207,7 @@ export default function TemplatesPage() {
                   rows={4}
                   className="w-full bg-input border border-border rounded-lg px-4 py-2 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
                 />
-                <p className="text-xs text-muted-foreground mt-1">Use {{variable}} for dynamic content</p>
+                <p className="text-xs text-muted-foreground mt-1">Use {'{{variable}}'} for dynamic content</p>
               </div>
             </div>
             <div className="flex gap-2 p-6 border-t border-border">
