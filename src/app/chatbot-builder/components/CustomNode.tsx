@@ -25,9 +25,9 @@ const NodeIcon = ({ type }: { type: string }) => {
 
 const CustomNode = memo(({ data, selected }: NodeProps) => {
     return (
-        <div className={\`bg-white dark:bg-zinc-950 border-2 rounded-xl shadow-md min-w-[250px] transition-all \${
-      selected ? "border-blue-500 shadow-blue-500/20" : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700"
-    }\`}>
+        <div className={`bg-white dark:bg-zinc-950 border-2 rounded-xl shadow-md min-w-[250px] transition-all ${
+          selected ? "border-blue-500 shadow-blue-500/20" : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700"
+        }`}>
       {/* Target Handle (Input) */}
       <Handle type="target" position={Position.Left} className="w-3 h-3 bg-zinc-400 border-2 border-white dark:border-zinc-900" />
 
