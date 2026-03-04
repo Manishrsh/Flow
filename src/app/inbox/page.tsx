@@ -60,25 +60,8 @@ export default function InboxPage() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex p-2 gap-1 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900">
-          {["All", "WhatsApp", "Instagram", "YouTube"].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab.toLowerCase())}
-              className={`flex-1 py-1.5 px-3 text-xs font-medium rounded-md transition-all ${
-                activeTab === tab.toLowerCase()
-                  ? "bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-white"
-                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-
-      {/* Chat List */}
-      <div className="flex-1 overflow-y-auto">
+        {/* Chat List */}
+        <div className="flex-1 overflow-y-auto">
         {chats.map((chat) => (
           <div
             key={chat.id}
@@ -116,6 +99,7 @@ export default function InboxPage() {
             )}
           </div>
         ))}
+        </div>
       </div>
 
       {/* 2. Main Chat Area */}
