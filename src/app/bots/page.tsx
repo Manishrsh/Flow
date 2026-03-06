@@ -1,71 +1,72 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Bot, Plus, Download, Upload, MessageSquare, Play, Search, PlayCircle, GitBranch, Settings, Users, MoreVertical } from 'lucide-react';
-
-// Mock n8n-style JSON structure for a bot flow
-const MOCK_N8N_WORKFLOW = {
-    "nodes": [
-        {
-            "parameters": {
-                "event": "messageReceived"
-            },
-            "name": "WhatsApp Trigger",
-            "type": "n8n-nodes-base.webhook",
-            "position": [250, 300]
-        },
-        {
-            "parameters": {
-                "conditions": {
-                    "string": [
-                        { "value1": "={{$json.message.text}}", "operation": "contains", "value2": "pricing" }
-                    ]
-                }
-            },
-            "name": "IF Keyword",
-            "type": "n8n-nodes-base.if",
-            "position": [500, 300]
-        },
-        {
-            "parameters": {
-                "phoneNumberId": "={{$json.phoneNumberId}}",
-                "text": "Our pricing starts at $99/mo. Would you like a link?"
-            },
-            "name": "Send WhatsApp",
-            "type": "n8n-nodes-base.whatsapp",
-            "position": [800, 200]
-        }
-    ],
-    "connections": {
-        "WhatsApp Trigger": {
-            "main": [[{ "node": "IF Keyword", "type": "main", "index": 0 }]]
-        },
-        "IF Keyword": {
-            "main": [[{ "node": "Send WhatsApp", "type": "main", "index": 0 }]]
-        }
-    }
-};
+import { botsAPI, templatesAPI } from '@/lib/api';
 
 export default function BotBuilder() {
     const [activeTab, setActiveTab] = useState<'flows' | 'templates'>('flows');
     const [showJsonModal, setShowJsonModal] = useState(false);
     const [jsonInput, setJsonInput] = useState('');
+    const [bots, setBots] = useState<any[]>([]);
+    const [templates, setTemplates] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const handleImportN8n = () => {
+    useEffect(() => {
+        if (activeTab === 'flows') {
+            fetchBots();
+        } else {
+            fetchTemplates();
+        }
+    }, [activeTab]);
+
+    const fetchBots = async () => {
+        try {
+            setLoading(true);
+            const response = await botsAPI.getAll();
+            setBots(response.data.data);
+        } catch (error) {
+            console.error("Error fetching bots:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchTemplates = async () => {
+        try {
+            setLoading(true);
+            const response = await templatesAPI.getAll();
+            setTemplates(response.data.data);
+        } catch (error) {
+            console.error("Error fetching templates:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleImportN8n = async () => {
         try {
             if (jsonInput.trim()) {
                 const parsed = JSON.parse(jsonInput);
-                console.log("Imported n8n workflow:", parsed);
-                // In a real app, this would validate and save to the DB,
-                // transforming it into our internal flow representation if needed.
+                await botsAPI.importN8n(parsed);
                 alert('n8n Workflow Imported Successfully!');
-            } else {
-                // Just demo the mock data if empty
-                console.log("Using demo n8n workflow:", MOCK_N8N_WORKFLOW);
-                setJsonInput(JSON.stringify(MOCK_N8N_WORKFLOW, null, 2));
+                setJsonInput('');
+                setShowJsonModal(false);
+                fetchBots();
             }
         } catch (e) {
-            alert('Invalid JSON format');
+            alert('Invalid JSON format or import failed');
+        }
+    };
+
+    const handleSyncTemplates = async () => {
+        try {
+            await templatesAPI.sync();
+            alert('Templates synced successfully');
+            fetchTemplates();
+        } catch (error) {
+            console.error("Error syncing templates:", error);
+            alert('Failed to sync templates');
         }
     };
 
@@ -142,84 +143,110 @@ export default function BotBuilder() {
                 {/* Dynamic Area */}
                 <div className="flex-1 overflow-y-auto p-10 z-10">
 
-                    {/* FLOWS TAB */}
-                    {activeTab === 'flows' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                            {[
-                                { name: "Welcome Flow", trigger: "Keyword: 'Hi', 'Hello'", status: "active", icon: <MessageSquare size={20} /> },
-                                { name: "Support Escalation", trigger: "Keyword: 'Agent', 'Help'", status: "active", icon: <Users size={20} /> },
-                                { name: "Pricing Query Bot (n8n)", trigger: "Keyword: 'Pricing', 'Cost'", status: "draft", icon: <GitBranch size={20} /> }
-                            ].map((flow, i) => (
-                                <div key={i} className="bg-[#1c1c1f]/80 backdrop-blur-md border border-gray-800/80 rounded-2xl p-6 group hover:border-indigo-500/50 transition-all shadow-lg hover:shadow-[0_0_30px_rgba(99,102,241,0.1)] relative overflow-hidden flex flex-col">
-
-                                    {/* Status Indicator */}
-                                    <div className="absolute top-4 right-4 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-900/50 border border-gray-700/50">
-                                        <div className={`w-1.5 h-1.5 rounded-full ${flow.status === 'active' ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.8)]' : 'bg-orange-500 shadow-[0_0_5px_rgba(249,115,22,0.8)]'}`}></div>
-                                        <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">{flow.status}</span>
-                                    </div>
-
-                                    <div className="w-12 h-12 rounded-xl bg-gray-800 group-hover:bg-indigo-500/10 flex items-center justify-center text-gray-400 group-hover:text-indigo-400 mb-5 transition-colors border border-gray-700 group-hover:border-indigo-500/30">
-                                        {flow.icon}
-                                    </div>
-
-                                    <h3 className="text-xl font-bold text-gray-100 tracking-tight mb-1">{flow.name}</h3>
-                                    <p className="text-sm text-gray-500 font-medium mb-6 flex-1">
-                                        Triggered by: {flow.trigger}
-                                    </p>
-
-                                    <div className="flex gap-3 mt-auto">
-                                        <button className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-200 text-sm font-medium py-2 rounded-lg transition-colors border border-gray-700">
-                                            Edit Flow
-                                        </button>
-                                        <button className="px-3 bg-gray-800 hover:bg-gray-700 text-gray-400 text-sm font-medium rounded-lg transition-colors border border-gray-700">
-                                            <MoreVertical size={16} />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* TEMPLATES TAB */}
-                    {activeTab === 'templates' && (
-                        <div className="bg-[#1c1c1f] border border-gray-800/80 rounded-2xl shadow-xl overflow-hidden">
-                            <div className="px-6 py-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/30">
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                                    <input type="text" placeholder="Search templates..." className="bg-[#121214] border border-gray-700/50 rounded-lg py-1.5 pl-9 pr-4 text-sm focus:outline-none focus:border-indigo-500 text-gray-200 transition-colors" />
-                                </div>
-                                <button className="text-indigo-400 text-sm font-semibold hover:text-indigo-300">Sync with Meta</button>
+                    {loading ? (
+                        <div className="flex items-center justify-center h-64">
+                            <div className="text-center">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto"></div>
+                                <p className="mt-4 text-gray-400">Loading...</p>
                             </div>
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-gray-800/20 text-gray-400 text-xs uppercase tracking-wider">
-                                        <th className="px-6 py-4 font-medium">Template Name</th>
-                                        <th className="px-6 py-4 font-medium">Category</th>
-                                        <th className="px-6 py-4 font-medium">Language</th>
-                                        <th className="px-6 py-4 font-medium">Status</th>
-                                        <th className="px-6 py-4 font-medium text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="text-sm divide-y divide-gray-800">
-                                    {['order_confirmation', 'welcome_message', 'shipping_update'].map((tpl, i) => (
-                                        <tr key={tpl} className="hover:bg-gray-800/10 transition-colors text-gray-300">
-                                            <td className="px-6 py-5 font-medium text-gray-200">{tpl}</td>
-                                            <td className="px-6 py-5"><span className="px-2.5 py-1 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs">Utility</span></td>
-                                            <td className="px-6 py-5">en_US</td>
-                                            <td className="px-6 py-5">
-                                                <span className="flex items-center gap-1.5">
-                                                    <div className={`w-2 h-2 rounded-full ${i === 2 ? 'bg-orange-500' : 'bg-green-500'}`}></div>
-                                                    {i === 2 ? 'Pending Review' : 'Approved'}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-5 text-right">
-                                                <button className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors">Preview</button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
                         </div>
+                    ) : (
+                        <>
+                            {/* FLOWS TAB */}
+                            {activeTab === 'flows' && (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                                    {bots.length > 0 ? (
+                                        bots.map((bot) => (
+                                            <div key={bot._id} className="bg-[#1c1c1f]/80 backdrop-blur-md border border-gray-800/80 rounded-2xl p-6 group hover:border-indigo-500/50 transition-all shadow-lg hover:shadow-[0_0_30px_rgba(99,102,241,0.1)] relative overflow-hidden flex flex-col">
+
+                                                {/* Status Indicator */}
+                                                <div className="absolute top-4 right-4 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-900/50 border border-gray-700/50">
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${bot.isActive ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.8)]' : 'bg-orange-500 shadow-[0_0_5px_rgba(249,115,22,0.8)]'}`}></div>
+                                                    <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">{bot.isActive ? 'active' : 'inactive'}</span>
+                                                </div>
+
+                                                <div className="w-12 h-12 rounded-xl bg-gray-800 group-hover:bg-indigo-500/10 flex items-center justify-center text-gray-400 group-hover:text-indigo-400 mb-5 transition-colors border border-gray-700 group-hover:border-indigo-500/30">
+                                                    <GitBranch size={20} />
+                                                </div>
+
+                                                <h3 className="text-xl font-bold text-gray-100 tracking-tight mb-1">{bot.name}</h3>
+                                                <p className="text-sm text-gray-500 font-medium mb-6 flex-1">
+                                                    {bot.description || 'No description'}
+                                                </p>
+
+                                                <div className="flex gap-3 mt-auto">
+                                                    <button className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-200 text-sm font-medium py-2 rounded-lg transition-colors border border-gray-700">
+                                                        Edit Flow
+                                                    </button>
+                                                    <button className="px-3 bg-gray-800 hover:bg-gray-700 text-gray-400 text-sm font-medium rounded-lg transition-colors border border-gray-700">
+                                                        <MoreVertical size={16} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="col-span-3 text-center py-12">
+                                            <GitBranch className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                                            <p className="text-gray-400">No bots found. Create your first automation flow!</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* TEMPLATES TAB */}
+                            {activeTab === 'templates' && (
+                                <div className="bg-[#1c1c1f] border border-gray-800/80 rounded-2xl shadow-xl overflow-hidden">
+                                    <div className="px-6 py-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/30">
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                                            <input type="text" placeholder="Search templates..." className="bg-[#121214] border border-gray-700/50 rounded-lg py-1.5 pl-9 pr-4 text-sm focus:outline-none focus:border-indigo-500 text-gray-200 transition-colors" />
+                                        </div>
+                                        <button 
+                                            onClick={handleSyncTemplates}
+                                            className="text-indigo-400 text-sm font-semibold hover:text-indigo-300"
+                                        >
+                                            Sync with Meta
+                                        </button>
+                                    </div>
+                                    {templates.length > 0 ? (
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-gray-800/20 text-gray-400 text-xs uppercase tracking-wider">
+                                                    <th className="px-6 py-4 font-medium">Template Name</th>
+                                                    <th className="px-6 py-4 font-medium">Category</th>
+                                                    <th className="px-6 py-4 font-medium">Language</th>
+                                                    <th className="px-6 py-4 font-medium">Status</th>
+                                                    <th className="px-6 py-4 font-medium text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="text-sm divide-y divide-gray-800">
+                                                {templates.map((tpl) => (
+                                                    <tr key={tpl._id} className="hover:bg-gray-800/10 transition-colors text-gray-300">
+                                                        <td className="px-6 py-5 font-medium text-gray-200">{tpl.name}</td>
+                                                        <td className="px-6 py-5"><span className="px-2.5 py-1 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs">{tpl.category || 'Utility'}</span></td>
+                                                        <td className="px-6 py-5">{tpl.language || 'en_US'}</td>
+                                                        <td className="px-6 py-5">
+                                                            <span className="flex items-center gap-1.5">
+                                                                <div className={`w-2 h-2 rounded-full ${tpl.status === 'APPROVED' ? 'bg-green-500' : 'bg-orange-500'}`}></div>
+                                                                {tpl.status || 'Pending'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-5 text-right">
+                                                            <button className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors">Preview</button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    ) : (
+                                        <div className="text-center py-12">
+                                            <MessageSquare className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                                            <p className="text-gray-400">No templates found. Sync with Meta to import templates.</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </>
                     )}
 
                 </div>

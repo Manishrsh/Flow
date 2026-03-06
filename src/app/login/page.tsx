@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, ArrowRight } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
+import api from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,13 +19,22 @@ export default function LoginPage() {
     setError("");
     setIsLoading(true);
 
-    // Mock authentication
-    if (email && password) {
-      setTimeout(() => {
+    try {
+      // Real authentication
+      const response = await api.post('/auth/login', { email, password });
+      
+      if (response.data.success) {
+        // Store tokens
+        localStorage.setItem('accessToken', response.data.data.accessToken);
+        localStorage.setItem('refreshToken', response.data.data.refreshToken);
+        localStorage.setItem('user', JSON.stringify(response.data.data.user));
+        
+        // Redirect to dashboard
         router.push("/dashboard");
-      }, 500);
-    } else {
-      setError("Please fill in all fields");
+      }
+    } catch (err: any) {
+      console.error("Login error:", err);
+      setError(err.response?.data?.error || "Invalid email or password");
       setIsLoading(false);
     }
   };

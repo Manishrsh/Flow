@@ -1,17 +1,39 @@
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 
 export const generateAccessToken = (userId: string): string => {
-    return jwt.sign({ id: userId }, process.env.JWT_SECRET!, {
-        expiresIn: process.env.JWT_EXPIRE || '7d'
-    });
+    const secret = process.env.JWT_SECRET || 'default-secret-change-in-production';
+
+    const options: SignOptions = {
+        expiresIn: process.env.JWT_EXPIRE as jwt.SignOptions["expiresIn"]
+    };
+
+    return jwt.sign({ id: userId }, secret, options);
+};
+
+export const verifyAccessToken = (token: string): { id: string } => {
+    try {
+        const secret = process.env.JWT_SECRET || 'default-secret-change-in-production';
+        return jwt.verify(token, secret) as { id: string };
+    } catch (error) {
+        throw new Error('Invalid or expired access token');
+    }
 };
 
 export const generateRefreshToken = (userId: string): string => {
-    return jwt.sign({ id: userId }, process.env.JWT_REFRESH_SECRET!, {
-        expiresIn: process.env.JWT_REFRESH_EXPIRE || '30d'
-    });
+    const secret = process.env.JWT_REFRESH_SECRET || 'default-refresh-secret-change-in-production';
+
+    const options: SignOptions = {
+        expiresIn: process.env.JWT_REFRESH_EXPIRE as jwt.SignOptions["expiresIn"]
+    };
+
+    return jwt.sign({ id: userId }, secret, options);
 };
 
 export const verifyRefreshToken = (token: string): { id: string } => {
-    return jwt.verify(token, process.env.JWT_REFRESH_SECRET!) as { id: string };
+    try {
+        const secret = process.env.JWT_REFRESH_SECRET || 'default-refresh-secret-change-in-production';
+        return jwt.verify(token, secret) as { id: string };
+    } catch (error) {
+        throw new Error('Invalid or expired refresh token');
+    }
 };

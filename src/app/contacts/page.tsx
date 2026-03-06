@@ -1,50 +1,24 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Search, Plus, MoreVertical, Upload, FileDown, X, Mail } from "lucide-react";
+import { contactsAPI } from "@/lib/api";
 
 interface Contact {
-  id: string;
+  _id: string;
   name: string;
-  email: string;
+  email?: string;
   phone: string;
-  tags: string[];
-  status: "active" | "inactive";
-  added: string;
+  tags?: string[];
+  status?: string;
+  createdAt: string;
 }
 
 export default function ContactsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddingContact, setIsAddingContact] = useState(false);
-  const [contacts, setContacts] = useState<Contact[]>([
-    {
-      id: "1",
-      name: "John Doe",
-      email: "john@example.com",
-      phone: "+1 234 567 8900",
-      tags: ["VIP", "Customer"],
-      status: "active",
-      added: "Jan 15, 2024",
-    },
-    {
-      id: "2",
-      name: "Jane Smith",
-      email: "jane@example.com",
-      phone: "+1 234 567 8901",
-      tags: ["Prospect"],
-      status: "active",
-      added: "Jan 14, 2024",
-    },
-    {
-      id: "3",
-      name: "Bob Johnson",
-      email: "bob@example.com",
-      phone: "+1 234 567 8902",
-      tags: ["Lead"],
-      status: "inactive",
-      added: "Jan 10, 2024",
-    },
-  ]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [newContact, setNewContact] = useState({
     name: "",
@@ -52,32 +26,83 @@ export default function ContactsPage() {
     phone: "",
   });
 
+  useEffect(() => {
+    fetchContacts();
+  }, []);
+
+  const fetchContacts = async () => {
+    try {
+      setLoading(true);
+      const response = await contactsAPI.getAll();
+      setContacts(response.data.data);
+    } catch (error) {
+      console.error("Error fetching contacts:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filteredContacts = contacts.filter(
     (contact) =>
       contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      contact.email.toLowerCase().includes(searchTerm.toLowerCase())
+      contact.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contact.phone.includes(searchTerm)
   );
 
-  const handleAddContact = () => {
-    if (newContact.name && newContact.email) {
-      const contact: Contact = {
-        id: String(contacts.length + 1),
-        name: newContact.name,
-        email: newContact.email,
-        phone: newContact.phone,
-        tags: [],
-        status: "active",
-        added: new Date().toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        }),
-      };
-      setContacts([...contacts, contact]);
-      setNewContact({ name: "", email: "", phone: "" });
-      setIsAddingContact(false);
+  const handleAddContact = async () => {
+    if (newContact.name && newContact.phone) {
+      try {
+        await contactsAPI.create(newContact);
+        setNewContact({ name: "", email: "", phone: "" });
+        setIsAddingContact(false);
+        fetchContacts();
+      } catch (error) {
+        console.error("Error creating contact:", error);
+        alert("Failed to create contact");
+      }
     }
   };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        await contactsAPI.import(file);
+        fetchContacts();
+        alert("Contacts imported successfully");
+      } catch (error) {
+        console.error("Error importing contacts:", error);
+        alert("Failed to import contacts");
+      }
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      const response = await contactsAPI.export();
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `contacts-${new Date().toISOString()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error("Error exporting contacts:", error);
+      alert("Failed to export contacts");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading contacts...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -88,11 +113,15 @@ export default function ContactsPage() {
           <p className="text-muted-foreground mt-1">Manage and organize your customer contacts</p>
         </div>
         <div className="flex gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-foreground hover:bg-muted transition-colors">
+          <label className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-foreground hover:bg-muted transition-colors cursor-pointer">
             <Upload className="w-4 h-4" />
             <span className="hidden sm:inline">Import</span>
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-foreground hover:bg-muted transition-colors">
+            <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
+          </label>
+          <button 
+            onClick={handleExport}
+            className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-foreground hover:bg-muted transition-colors"
+          >
             <FileDown className="w-4 h-4" />
             <span className="hidden sm:inline">Export</span>
           </button>
@@ -199,20 +228,24 @@ export default function ContactsPage() {
             <tbody>
               {filteredContacts.length > 0 ? (
                 filteredContacts.map((contact) => (
-                  <tr key={contact.id} className="border-b border-border hover:bg-muted/50 transition-colors">
+                  <tr key={contact._id} className="border-b border-border hover:bg-muted/50 transition-colors">
                     <td className="px-6 py-4 text-sm text-foreground font-medium">{contact.name}</td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground">{contact.email}</td>
+                    <td className="px-6 py-4 text-sm text-muted-foreground">{contact.email || '—'}</td>
                     <td className="px-6 py-4 text-sm text-muted-foreground">{contact.phone}</td>
                     <td className="px-6 py-4 text-sm">
                       <div className="flex flex-wrap gap-1">
-                        {contact.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full"
-                          >
-                            {tag}
-                          </span>
-                        ))}
+                        {contact.tags && contact.tags.length > 0 ? (
+                          contact.tags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-full"
+                            >
+                              {tag}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm">
@@ -226,7 +259,13 @@ export default function ContactsPage() {
                         {contact.status === "active" ? "Active" : "Inactive"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground">{contact.added}</td>
+                    <td className="px-6 py-4 text-sm text-muted-foreground">
+                      {new Date(contact.createdAt).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      })}
+                    </td>
                     <td className="px-6 py-4 text-sm">
                       <button className="text-muted-foreground hover:text-foreground transition-colors">
                         <MoreVertical className="w-4 h-4" />

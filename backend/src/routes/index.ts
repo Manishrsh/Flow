@@ -8,6 +8,8 @@ import botRoutes from './botRoutes';
 import templateRoutes from './templateRoutes';
 import dashboardRoutes from './dashboardRoutes';
 import webhookRoutes from './webhookRoutes';
+import whatsappAccountRoutes from './whatsappAccountRoutes';
+import metaEmbeddedSignupRoutes from './metaEmbeddedSignupRoutes';
 
 const router = Router();
 
@@ -20,5 +22,7 @@ router.use('/bots', botRoutes);
 router.use('/templates', templateRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/webhooks', webhookRoutes);
+router.use('/whatsapp-accounts', whatsappAccountRoutes);
+router.use('/meta-embedded-signup', metaEmbeddedSignupRoutes);
 
 export default router;

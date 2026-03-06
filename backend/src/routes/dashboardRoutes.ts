@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { protect } from '../middleware/auth';
+import { protect, AuthRequest } from '../middleware/auth';
 import Message from '../models/Message';
 import Conversation from '../models/Conversation';
 import Campaign from '../models/Campaign';
@@ -10,7 +10,7 @@ const router = Router();
 router.use(protect);
 
 // Get dashboard stats
-router.get('/stats', async (req, res, next) => {
+router.get('/stats', async (req: AuthRequest, res, next) => {
     try {
         const userId = req.user?._id;
         const { period = '7d' } = req.query;
@@ -96,7 +96,7 @@ router.get('/stats', async (req, res, next) => {
 });
 
 // Get recent activity
-router.get('/activity', async (req, res, next) => {
+router.get('/activity', async (req: AuthRequest, res, next) => {
     try {
         const userId = req.user?._id;
         const { limit = 10 } = req.query;

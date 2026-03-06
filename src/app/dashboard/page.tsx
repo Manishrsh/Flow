@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   MessageSquare,
   Users,
@@ -12,15 +12,53 @@ import {
   ArrowDownRight,
 } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { dashboardAPI } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function DashboardPage() {
+  useAuth(); // Protect this route
+  
   const [selectedPeriod, setSelectedPeriod] = useState("7d");
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
 
-  // Mock data
+  useEffect(() => {
+    fetchDashboardData();
+  }, [selectedPeriod]);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const [statsResponse, activityResponse] = await Promise.all([
+        dashboardAPI.getStats(selectedPeriod),
+        dashboardAPI.getActivity(10)
+      ]);
+      
+      setDashboardData(statsResponse.data.data);
+      setRecentActivity(activityResponse.data.data);
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
   const stats = [
     {
       label: "Messages Sent",
-      value: "24,582",
+      value: dashboardData?.messages?.sent?.toLocaleString() || "0",
       change: "+12.5%",
       trend: "up",
       icon: <MessageSquare className="w-6 h-6" />,
@@ -29,7 +67,7 @@ export default function DashboardPage() {
     },
     {
       label: "Active Chats",
-      value: "1,324",
+      value: dashboardData?.conversations?.active?.toLocaleString() || "0",
       change: "+5.2%",
       trend: "up",
       icon: <Users className="w-6 h-6" />,
@@ -38,16 +76,16 @@ export default function DashboardPage() {
     },
     {
       label: "Campaigns",
-      value: "18",
-      change: "-2.1%",
-      trend: "down",
+      value: dashboardData?.campaigns?.total?.toLocaleString() || "0",
+      change: dashboardData?.campaigns?.running > 0 ? `${dashboardData.campaigns.running} running` : "0 running",
+      trend: "up",
       icon: <Send className="w-6 h-6" />,
       color: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
       border: "border-purple-200 dark:border-purple-800",
     },
     {
-      label: "Templates",
-      value: "45",
+      label: "Total Contacts",
+      value: dashboardData?.contacts?.total?.toLocaleString() || "0",
       change: "+8.3%",
       trend: "up",
       icon: <FileText className="w-6 h-6" />,
@@ -56,42 +94,10 @@ export default function DashboardPage() {
     },
   ];
 
-  const chartData = [
-    { date: "Jan 1", messages: 400, conversations: 240, users: 240 },
-    { date: "Jan 2", messages: 600, conversations: 360, users: 221 },
-    { date: "Jan 3", messages: 800, conversations: 400, users: 229 },
-    { date: "Jan 4", messages: 900, conversations: 480, users: 200 },
-    { date: "Jan 5", messages: 1200, conversations: 570, users: 218 },
-    { date: "Jan 6", messages: 1100, conversations: 600, users: 250 },
-    { date: "Jan 7", messages: 1400, conversations: 710, users: 290 },
-  ];
-
-  const recentActivity = [
-    {
-      type: "message",
-      description: "Campaign 'Summer Sale 2024' sent to 5,200 contacts",
-      time: "2 hours ago",
-      icon: "📨",
-    },
-    {
-      type: "integration",
-      description: "WhatsApp integration reconnected",
-      time: "4 hours ago",
-      icon: "🔗",
-    },
-    {
-      type: "template",
-      description: "New template 'Order Confirmation' approved",
-      time: "1 day ago",
-      icon: "✓",
-    },
-    {
-      type: "team",
-      description: "Sarah joined your team",
-      time: "2 days ago",
-      icon: "👤",
-    },
-  ];
+  const chartData = dashboardData?.messagesOverTime?.map((item: any) => ({
+    date: new Date(item._id).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    messages: item.count,
+  })) || [];
 
   return (
     <div className="p-6 space-y-6">
@@ -149,86 +155,101 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-lg font-semibold text-foreground">Message Trends</h3>
-              <p className="text-sm text-muted-foreground">Messages sent over the last 7 days</p>
+              <p className="text-sm text-muted-foreground">Messages sent over time</p>
             </div>
             <TrendingUp className="w-5 h-5 text-primary" />
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-              <XAxis dataKey="date" stroke="var(--color-muted-foreground)" />
-              <YAxis stroke="var(--color-muted-foreground)" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "var(--color-background)",
-                  border: `1px solid var(--color-border)`,
-                  borderRadius: "8px",
-                }}
-                labelStyle={{ color: "var(--color-foreground)" }}
-              />
-              <Legend />
-              <Line
-                type="monotone"
-                dataKey="messages"
-                stroke="var(--color-primary)"
-                strokeWidth={2}
-                dot={{ fill: "var(--color-primary)", r: 4 }}
-              />
-              <Line
-                type="monotone"
-                dataKey="conversations"
-                stroke="var(--color-accent)"
-                strokeWidth={2}
-                dot={{ fill: "var(--color-accent)", r: 4 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          {chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                <XAxis dataKey="date" stroke="var(--color-muted-foreground)" />
+                <YAxis stroke="var(--color-muted-foreground)" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "var(--color-background)",
+                    border: `1px solid var(--color-border)`,
+                    borderRadius: "8px",
+                  }}
+                  labelStyle={{ color: "var(--color-foreground)" }}
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="messages"
+                  stroke="var(--color-primary)"
+                  strokeWidth={2}
+                  dot={{ fill: "var(--color-primary)", r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+              No data available for the selected period
+            </div>
+          )}
         </div>
 
-        {/* Bar Chart */}
+        {/* Stats Summary */}
         <div className="p-6 border border-border rounded-lg bg-background">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className="text-lg font-semibold text-foreground">Activity</h3>
-              <p className="text-sm text-muted-foreground">Last 7 days breakdown</p>
+              <h3 className="text-lg font-semibold text-foreground">Summary</h3>
+              <p className="text-sm text-muted-foreground">Campaign performance</p>
             </div>
             <Calendar className="w-5 h-5 text-primary" />
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-              <XAxis dataKey="date" stroke="var(--color-muted-foreground)" tick={{ fontSize: 12 }} />
-              <YAxis stroke="var(--color-muted-foreground)" tick={{ fontSize: 12 }} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "var(--color-background)",
-                  border: `1px solid var(--color-border)`,
-                  borderRadius: "8px",
-                }}
-                labelStyle={{ color: "var(--color-foreground)" }}
-              />
-              <Bar dataKey="users" fill="var(--color-primary)" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="space-y-4">
+            <div className="p-4 rounded-lg bg-muted/50">
+              <p className="text-sm text-muted-foreground">Total Sent</p>
+              <p className="text-2xl font-bold text-foreground mt-1">
+                {dashboardData?.campaigns?.totalSent?.toLocaleString() || "0"}
+              </p>
+            </div>
+            <div className="p-4 rounded-lg bg-muted/50">
+              <p className="text-sm text-muted-foreground">Total Delivered</p>
+              <p className="text-2xl font-bold text-foreground mt-1">
+                {dashboardData?.campaigns?.totalDelivered?.toLocaleString() || "0"}
+              </p>
+            </div>
+            <div className="p-4 rounded-lg bg-muted/50">
+              <p className="text-sm text-muted-foreground">Delivery Rate</p>
+              <p className="text-2xl font-bold text-foreground mt-1">
+                {dashboardData?.campaigns?.totalSent > 0
+                  ? `${((dashboardData.campaigns.totalDelivered / dashboardData.campaigns.totalSent) * 100).toFixed(1)}%`
+                  : "0%"}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Recent Activity */}
       <div className="p-6 border border-border rounded-lg bg-background">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Recent Activity</h3>
+        <h3 className="text-lg font-semibold text-foreground mb-4">Recent Messages</h3>
         <div className="space-y-3">
-          {recentActivity.map((activity, index) => (
-            <div
-              key={index}
-              className="flex items-start gap-4 p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
-            >
-              <div className="text-2xl">{activity.icon}</div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-foreground">{activity.description}</p>
-                <p className="text-xs text-muted-foreground mt-1">{activity.time}</p>
+          {recentActivity.length > 0 ? (
+            recentActivity.map((activity: any, index: number) => (
+              <div
+                key={index}
+                className="flex items-start gap-4 p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+              >
+                <div className="text-2xl">
+                  {activity.direction === 'outbound' ? '📤' : '📥'}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-foreground">
+                    {activity.direction === 'outbound' ? 'Sent' : 'Received'}: {activity.content?.substring(0, 50)}...
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {activity.contactId?.name || activity.contactId?.phone || 'Unknown'} • {new Date(activity.createdAt).toLocaleString()}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <p className="text-center text-muted-foreground py-8">No recent activity</p>
+          )}
         </div>
       </div>
     </div>

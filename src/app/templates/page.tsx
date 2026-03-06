@@ -1,98 +1,90 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Search, Copy, Edit2, Trash2, CheckCircle2, Clock, X, MessageSquare } from "lucide-react";
+import { templatesAPI } from "@/lib/api";
 
 interface Template {
-  id: string;
+  _id: string;
   name: string;
-  category: "promotional" | "transactional" | "marketing";
-  platform: "whatsapp" | "instagram" | "sms";
-  status: "approved" | "pending" | "draft";
-  preview: string;
-  created: string;
-  used: number;
+  category?: string;
+  language?: string;
+  status?: string;
+  components?: any[];
+  createdAt: string;
 }
 
 export default function TemplatesPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState<"promotional" | "transactional" | "marketing">("promotional");
+  const [activeTab, setActiveTab] = useState<string>("all");
   const [isCreating, setIsCreating] = useState(false);
-  const [templates, setTemplates] = useState<Template[]>([
-    {
-      id: "1",
-      name: "Order Confirmation",
-      category: "transactional",
-      platform: "whatsapp",
-      status: "approved",
-      preview: "Hi {{name}}, your order #{{orderId}} has been confirmed.",
-      created: "Jan 10, 2024",
-      used: 1234,
-    },
-    {
-      id: "2",
-      name: "Welcome Message",
-      category: "marketing",
-      platform: "whatsapp",
-      status: "approved",
-      preview: "Welcome {{name}}! Thanks for joining us. Here's a 10% discount code...",
-      created: "Jan 8, 2024",
-      used: 892,
-    },
-    {
-      id: "3",
-      name: "Flash Sale Alert",
-      category: "promotional",
-      platform: "instagram",
-      status: "pending",
-      preview: "Limited time offer! Get 50% off on all items today only.",
-      created: "Jan 20, 2024",
-      used: 0,
-    },
-    {
-      id: "4",
-      name: "Birthday Offer",
-      category: "promotional",
-      platform: "whatsapp",
-      status: "draft",
-      preview: "Happy birthday {{name}}! Enjoy 20% off on your purchase.",
-      created: "Jan 22, 2024",
-      used: 0,
-    },
-  ]);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [newTemplate, setNewTemplate] = useState({
     name: "",
-    category: activeTab,
-    platform: "whatsapp" as const,
-    preview: "",
+    category: "",
+    language: "en_US",
+    components: [],
   });
 
-  const handleCreateTemplate = () => {
-    if (newTemplate.name && newTemplate.preview) {
-      const template: Template = {
-        id: String(templates.length + 1),
-        name: newTemplate.name,
-        category: newTemplate.category,
-        platform: newTemplate.platform,
-        status: "draft",
-        preview: newTemplate.preview,
-        created: new Date().toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        }),
-        used: 0,
-      };
-      setTemplates([...templates, template]);
-      setNewTemplate({ name: "", category: activeTab, platform: "whatsapp", preview: "" });
-      setIsCreating(false);
+  useEffect(() => {
+    fetchTemplates();
+  }, []);
+
+  const fetchTemplates = async () => {
+    try {
+      setLoading(true);
+      const response = await templatesAPI.getAll();
+      setTemplates(response.data.data);
+    } catch (error) {
+      console.error("Error fetching templates:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleCreateTemplate = async () => {
+    if (newTemplate.name) {
+      try {
+        await templatesAPI.create(newTemplate);
+        setNewTemplate({ name: "", category: "", language: "en_US", components: [] });
+        setIsCreating(false);
+        fetchTemplates();
+      } catch (error) {
+        console.error("Error creating template:", error);
+        alert("Failed to create template");
+      }
+    }
+  };
+
+  const handleSyncTemplates = async () => {
+    try {
+      await templatesAPI.sync();
+      alert("Templates synced successfully");
+      fetchTemplates();
+    } catch (error) {
+      console.error("Error syncing templates:", error);
+      alert("Failed to sync templates");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading templates...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const categories = ['all', ...new Set(templates.map(t => t.category).filter(Boolean))];
+
   const filteredTemplates = templates.filter(
     (template) =>
-      template.category === activeTab &&
+      (activeTab === 'all' || template.category === activeTab) &&
       template.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -135,30 +127,38 @@ export default function TemplatesPage() {
       {/* Tabs and Search */}
       <div className="space-y-4">
         <div className="flex gap-2 border-b border-border overflow-x-auto">
-          {["promotional", "transactional", "marketing"].map((tab) => (
+          {categories.map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab as any)}
-              className={`px-4 py-3 border-b-2 transition-colors ${
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-3 border-b-2 transition-colors capitalize ${
                 activeTab === tab
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab}
             </button>
           ))}
         </div>
 
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search templates..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-background border border-border rounded-lg pl-10 pr-4 py-2.5 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-          />
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search templates..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-background border border-border rounded-lg pl-10 pr-4 py-2.5 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <button
+            onClick={handleSyncTemplates}
+            className="px-4 py-2 border border-border rounded-lg text-foreground hover:bg-muted transition-colors whitespace-nowrap"
+          >
+            Sync with Meta
+          </button>
         </div>
       </div>
 
@@ -187,27 +187,24 @@ export default function TemplatesPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Platform</label>
-                <select
-                  value={newTemplate.platform}
-                  onChange={(e) => setNewTemplate({ ...newTemplate, platform: e.target.value as any })}
-                  className="w-full bg-input border border-border rounded-lg px-4 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="whatsapp">WhatsApp</option>
-                  <option value="instagram">Instagram</option>
-                  <option value="sms">SMS</option>
-                </select>
+                <label className="block text-sm font-medium text-foreground mb-2">Category</label>
+                <input
+                  type="text"
+                  value={newTemplate.category}
+                  onChange={(e) => setNewTemplate({ ...newTemplate, category: e.target.value })}
+                  placeholder="e.g., MARKETING, UTILITY"
+                  className="w-full bg-input border border-border rounded-lg px-4 py-2 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Preview</label>
-                <textarea
-                  value={newTemplate.preview}
-                  onChange={(e) => setNewTemplate({ ...newTemplate, preview: e.target.value })}
-                  placeholder="Hi {{name}}, your order has been confirmed..."
-                  rows={4}
-                  className="w-full bg-input border border-border rounded-lg px-4 py-2 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                <label className="block text-sm font-medium text-foreground mb-2">Language</label>
+                <input
+                  type="text"
+                  value={newTemplate.language}
+                  onChange={(e) => setNewTemplate({ ...newTemplate, language: e.target.value })}
+                  placeholder="e.g., en_US"
+                  className="w-full bg-input border border-border rounded-lg px-4 py-2 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
-                <p className="text-xs text-muted-foreground mt-1">Use {'{{variable}}'} for dynamic content</p>
               </div>
             </div>
             <div className="flex gap-2 p-6 border-t border-border">
@@ -233,32 +230,39 @@ export default function TemplatesPage() {
         {filteredTemplates.length > 0 ? (
           filteredTemplates.map((template) => (
             <div
-              key={template.id}
+              key={template._id}
               className="border border-border rounded-lg p-6 bg-background hover:shadow-md transition-shadow"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <h3 className="text-lg font-semibold text-foreground">{template.name}</h3>
-                    {getStatusIcon(template.status)}
+                    {template.status === 'APPROVED' && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+                    {template.status === 'PENDING' && <Clock className="w-4 h-4 text-yellow-500" />}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Status: <span className="capitalize">{template.status}</span>
+                    Status: <span className="capitalize">{template.status || 'Unknown'}</span>
                   </p>
                 </div>
               </div>
 
               <div className="mb-4 p-3 rounded-lg bg-muted">
-                <p className="text-sm text-foreground line-clamp-3">{template.preview}</p>
+                <p className="text-sm text-foreground line-clamp-3">
+                  {template.components?.[0]?.text || 'No preview available'}
+                </p>
               </div>
 
               <div className="flex items-center gap-2 mb-4">
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPlatformColor(template.platform)}`}>
-                  {template.platform.charAt(0).toUpperCase() + template.platform.slice(1)}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  Used {template.used} times
-                </span>
+                {template.category && (
+                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                    {template.category}
+                  </span>
+                )}
+                {template.language && (
+                  <span className="text-xs text-muted-foreground">
+                    {template.language}
+                  </span>
+                )}
               </div>
 
               <div className="flex gap-2">

@@ -1,60 +1,30 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Search, MoreVertical, Eye, Pause, Play, X, Calendar } from "lucide-react";
+import { campaignsAPI } from "@/lib/api";
 
 interface Campaign {
-  id: string;
+  _id: string;
   name: string;
-  type: "broadcast" | "drip" | "scheduled";
+  type: string;
   status: "draft" | "running" | "paused" | "completed";
-  recipients: number;
-  sent: number;
-  opened: number;
-  clicked: number;
-  created: string;
-  scheduled?: string;
+  targetAudience?: any;
+  stats?: {
+    sent: number;
+    delivered: number;
+    read: number;
+    failed: number;
+  };
+  createdAt: string;
+  scheduledAt?: string;
 }
 
 export default function CampaignsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreating, setIsCreating] = useState(false);
-  const [campaigns, setCampaigns] = useState<Campaign[]>([
-    {
-      id: "1",
-      name: "Spring Sale 2024",
-      type: "broadcast",
-      status: "completed",
-      recipients: 5200,
-      sent: 5200,
-      opened: 2340,
-      clicked: 520,
-      created: "Jan 20, 2024",
-    },
-    {
-      id: "2",
-      name: "Welcome Series",
-      type: "drip",
-      status: "running",
-      recipients: 3400,
-      sent: 3200,
-      opened: 1800,
-      clicked: 320,
-      created: "Jan 15, 2024",
-    },
-    {
-      id: "3",
-      name: "Flash Deal - 24hrs",
-      type: "scheduled",
-      status: "draft",
-      recipients: 2100,
-      sent: 0,
-      opened: 0,
-      clicked: 0,
-      created: "Jan 22, 2024",
-      scheduled: "Jan 25, 2024 10:00 AM",
-    },
-  ]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [newCampaign, setNewCampaign] = useState({
     name: "",
@@ -62,28 +32,50 @@ export default function CampaignsPage() {
     templateId: "",
   });
 
-  const handleCreateCampaign = () => {
-    if (newCampaign.name && newCampaign.templateId) {
-      const campaign: Campaign = {
-        id: String(campaigns.length + 1),
-        name: newCampaign.name,
-        type: newCampaign.type,
-        status: "draft",
-        recipients: 0,
-        sent: 0,
-        opened: 0,
-        clicked: 0,
-        created: new Date().toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        }),
-      };
-      setCampaigns([...campaigns, campaign]);
-      setNewCampaign({ name: "", type: "broadcast", templateId: "" });
-      setIsCreating(false);
+  useEffect(() => {
+    fetchCampaigns();
+  }, []);
+
+  const fetchCampaigns = async () => {
+    try {
+      setLoading(true);
+      const response = await campaignsAPI.getAll();
+      setCampaigns(response.data.data);
+    } catch (error) {
+      console.error("Error fetching campaigns:", error);
+    } finally {
+      setLoading(false);
     }
   };
+
+  const handleCreateCampaign = async () => {
+    if (newCampaign.name && newCampaign.templateId) {
+      try {
+        await campaignsAPI.create({
+          name: newCampaign.name,
+          type: newCampaign.type,
+          templateId: newCampaign.templateId,
+        });
+        setNewCampaign({ name: "", type: "broadcast", templateId: "" });
+        setIsCreating(false);
+        fetchCampaigns();
+      } catch (error) {
+        console.error("Error creating campaign:", error);
+        alert("Failed to create campaign");
+      }
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading campaigns...</p>
+        </div>
+      </div>
+    );
+  }
 
   const filteredCampaigns = campaigns.filter(
     (campaign) =>
@@ -221,7 +213,7 @@ export default function CampaignsPage() {
             <tbody>
               {filteredCampaigns.length > 0 ? (
                 filteredCampaigns.map((campaign) => (
-                  <tr key={campaign.id} className="border-b border-border hover:bg-muted/50 transition-colors">
+                  <tr key={campaign._id} className="border-b border-border hover:bg-muted/50 transition-colors">
                     <td className="px-6 py-4 text-sm text-foreground font-medium">{campaign.name}</td>
                     <td className="px-6 py-4 text-sm text-muted-foreground capitalize">{campaign.type}</td>
                     <td className="px-6 py-4 text-sm">
@@ -229,14 +221,26 @@ export default function CampaignsPage() {
                         {campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-foreground">{campaign.recipients.toLocaleString()}</td>
                     <td className="px-6 py-4 text-sm text-foreground">
-                      {campaign.sent > 0 ? `${((campaign.opened / campaign.sent) * 100).toFixed(1)}%` : "—"}
+                      {campaign.targetAudience?.contactIds?.length || 0}
                     </td>
                     <td className="px-6 py-4 text-sm text-foreground">
-                      {campaign.opened > 0 ? `${((campaign.clicked / campaign.opened) * 100).toFixed(1)}%` : "—"}
+                      {campaign.stats?.sent && campaign.stats?.delivered
+                        ? `${((campaign.stats.delivered / campaign.stats.sent) * 100).toFixed(1)}%`
+                        : "—"}
                     </td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground">{campaign.created}</td>
+                    <td className="px-6 py-4 text-sm text-foreground">
+                      {campaign.stats?.read && campaign.stats?.delivered
+                        ? `${((campaign.stats.read / campaign.stats.delivered) * 100).toFixed(1)}%`
+                        : "—"}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-muted-foreground">
+                      {new Date(campaign.createdAt).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      })}
+                    </td>
                     <td className="px-6 py-4 text-sm">
                       <div className="flex gap-2">
                         <button className="p-1 text-muted-foreground hover:text-foreground transition-colors">

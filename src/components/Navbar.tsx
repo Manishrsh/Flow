@@ -1,10 +1,36 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Search, Bell, Settings, User, LogOut, ChevronDown } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function Navbar() {
+  const router = useRouter();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      setUser(JSON.parse(userStr));
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    router.push('/login');
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   return (
     <nav className="h-16 bg-background border-b border-border flex items-center justify-between px-6 shadow-sm sticky top-0 z-20">
@@ -40,25 +66,34 @@ export default function Navbar() {
             className="flex items-center gap-2 px-3 py-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
             <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
-              JD
+              {user ? getInitials(user.name) : 'U'}
             </div>
-            <span className="hidden sm:inline text-sm font-medium">John Doe</span>
+            <span className="hidden sm:inline text-sm font-medium">{user?.name || 'User'}</span>
             <ChevronDown className="w-4 h-4" />
           </button>
 
           {/* Dropdown Menu */}
           {isProfileOpen && (
             <div className="absolute right-0 mt-2 w-48 bg-background border border-border rounded-lg shadow-lg py-2 z-50">
-              <button className="w-full flex items-center gap-3 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors">
+              <button 
+                onClick={() => router.push('/settings/profile')}
+                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+              >
                 <User className="w-4 h-4" />
                 My Profile
               </button>
-              <button className="w-full flex items-center gap-3 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors">
+              <button 
+                onClick={() => router.push('/settings/preferences')}
+                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+              >
                 <Settings className="w-4 h-4" />
                 Settings
               </button>
               <hr className="my-2 border-border" />
-              <button className="w-full flex items-center gap-3 px-4 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors">
+              <button 
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+              >
                 <LogOut className="w-4 h-4" />
                 Logout
               </button>

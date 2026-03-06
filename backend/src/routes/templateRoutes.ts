@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { protect } from '../middleware/auth';
+import { protect, AuthRequest } from '../middleware/auth';
 import Template from '../models/Template';
 import { getWhatsAppTemplates } from '../services/whatsappService';
 
@@ -8,7 +8,7 @@ const router = Router();
 router.use(protect);
 
 // Get all templates
-router.get('/', async (req, res, next) => {
+router.get('/', async (req: AuthRequest, res, next) => {
     try {
         const templates = await Template.find({ userId: req.user?._id });
         res.json({ success: true, data: templates });
@@ -18,7 +18,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // Sync with WhatsApp
-router.post('/sync', async (req, res, next) => {
+router.post('/sync', async (req: AuthRequest, res, next) => {
     try {
         const whatsappTemplates = await getWhatsAppTemplates();
 
@@ -44,7 +44,7 @@ router.post('/sync', async (req, res, next) => {
 });
 
 // Create template
-router.post('/', async (req, res, next) => {
+router.post('/', async (req: AuthRequest, res, next) => {
     try {
         const template = await Template.create({
             ...req.body,
@@ -57,7 +57,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // Get single template
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', async (req: AuthRequest, res, next) => {
     try {
         const template = await Template.findOne({
             _id: req.params.id,
@@ -70,7 +70,7 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // Update template
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', async (req: AuthRequest, res, next) => {
     try {
         const template = await Template.findOneAndUpdate(
             { _id: req.params.id, userId: req.user?._id },
@@ -84,7 +84,7 @@ router.put('/:id', async (req, res, next) => {
 });
 
 // Delete template
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', async (req: AuthRequest, res, next) => {
     try {
         await Template.findOneAndDelete({
             _id: req.params.id,
